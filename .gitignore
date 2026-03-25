@@ -19,11 +19,12 @@ venv/
 .DS_Store
 Thumbs.db
 
-# Data (large files -- not tracked)
-images/
+# Labels and dataset splits (regenerated from scripts)
 labels/
 dataset/images/
 dataset/labels/
+
+# Trained models (large binary files)
 models/
 
 # Keep dataset config
