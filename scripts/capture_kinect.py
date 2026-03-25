@@ -55,7 +55,7 @@ def main():
 
     args = parse_args()
 
-    # Configure Kinect
+    # Configure Kinect (RGB + depth)
     k4a = PyK4A(
         Config(
             color_resolution=ColorResolution.RES_1080P,
