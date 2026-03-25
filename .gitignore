@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Virtual environment
+venv/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data (large files -- not tracked)
+images/
+labels/
+dataset/images/
+dataset/labels/
+models/
+
+# Keep dataset config
+!dataset/data.yaml
+
+# Pytest
+.pytest_cache/
+
+# Ultralytics runs
+runs/
+
+# Agentic files (per project standard)
+CLAUDE.md
+MEMORY.md
+ANTIPATTERNS.md

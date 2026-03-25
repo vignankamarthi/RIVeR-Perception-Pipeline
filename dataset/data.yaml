@@ -1,0 +1,7 @@
+path: /Users/vkamarthi24/Desktop/Work/Personal Projects/2025-2026/RiVER Lab Work/RIVeR-Perception-Pipeline/dataset
+train: images/train
+val: images/val
+
+nc: 1
+names:
+  0: banana
