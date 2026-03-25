@@ -3,15 +3,13 @@ Azure Kinect DK Capture Script
 Runs on Ubuntu lab machine (via SSH). Saves RGB frames as PNGs.
 
 Usage:
-    python3 capture_kinect.py
+    python3 capture_kinect.py                  # ENTER to capture (SSH-friendly, no GUI)
+    python3 capture_kinect.py --timed 3        # auto-capture every 3 seconds
+    python3 capture_kinect.py --gui            # interactive with preview window (needs display)
 
-Controls:
-    SPACE or 's' -- save current frame
-    'q'          -- quit
-
-If no display available (SSH without X forwarding), use --timed mode:
-    python3 capture_kinect.py --timed 3
-    Captures a frame every 3 seconds. Arrange banana between captures.
+Controls (default mode):
+    ENTER  -- save current frame
+    'q' + ENTER -- quit
 """
 
 import argparse
@@ -34,13 +32,18 @@ def parse_args():
         "--timed",
         type=int,
         default=0,
-        help="Timed capture mode: capture a frame every N seconds (0 = interactive)",
+        help="Auto-capture every N seconds (0 = manual ENTER mode)",
     )
     parser.add_argument(
         "--count",
         type=int,
         default=50,
-        help="Number of frames to capture in timed mode (default: 50)",
+        help="Max frames to capture (default: 50)",
+    )
+    parser.add_argument(
+        "--gui",
+        action="store_true",
+        help="Interactive mode with preview window (needs display, not for SSH)",
     )
     return parser.parse_args()
 
@@ -48,7 +51,6 @@ def parse_args():
 def main():
     # Hardware imports deferred to runtime
     import cv2
-    import numpy as np
     from pyk4a import PyK4A, Config, ColorResolution
 
     args = parse_args()
@@ -76,7 +78,7 @@ def main():
 
     try:
         if args.timed > 0:
-            # Timed capture mode (no display needed)
+            # Timed capture mode
             print(f"Timed mode: capturing every {args.timed}s, target {args.count} frames")
             print("Arrange banana, then wait for capture. Ctrl+C to stop early.")
             for i in range(args.count):
@@ -89,8 +91,9 @@ def main():
                     frame_index += 1
                     saved_count += 1
                 time.sleep(args.timed)
-        else:
-            # Interactive mode (needs display)
+
+        elif args.gui:
+            # GUI interactive mode (needs display)
             print("Controls: SPACE/s = save frame, q = quit")
             while True:
                 capture = k4a.get_capture()
@@ -98,7 +101,6 @@ def main():
                     continue
 
                 img = capture.color[:, :, :3]  # BGRA -> BGR
-
                 display = img.copy()
                 cv2.putText(
                     display,
@@ -121,11 +123,29 @@ def main():
                     frame_index += 1
                     saved_count += 1
 
+        else:
+            # Default: ENTER-to-capture mode (SSH-friendly, no GUI)
+            print("Press ENTER to capture, 'q' + ENTER to quit.")
+            while saved_count < args.count:
+                user_input = input(f"  [{saved_count}/{args.count}] ENTER to capture > ").strip()
+                if user_input.lower() == "q":
+                    break
+
+                capture = k4a.get_capture()
+                if capture.color is not None:
+                    img = capture.color[:, :, :3]  # BGRA -> BGR
+                    filename = OUTPUT_DIR / make_filename(PREFIX, frame_index)
+                    cv2.imwrite(str(filename), img)
+                    print(f"    Saved: {filename.name}")
+                    frame_index += 1
+                    saved_count += 1
+                else:
+                    print("    No frame received, try again.")
+
     except KeyboardInterrupt:
         print("\nStopped by user.")
     finally:
         k4a.stop()
-        cv2.destroyAllWindows()
         print(f"\nDone. {saved_count} images saved to {OUTPUT_DIR}")
 
 
