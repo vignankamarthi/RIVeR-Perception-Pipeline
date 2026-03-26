@@ -1,0 +1,35 @@
+{
+  "version": "5.4.1",
+  "flags": {},
+  "shapes": [
+    {
+      "label": "banana",
+      "points": [
+        [
+          537.021240234375,
+          289.27459716796875
+        ],
+        [
+          390.28369140625,
+          223.6873779296875
+        ],
+        [
+          407.0762939453125,
+          186.117431640625
+        ],
+        [
+          553.8138427734375,
+          251.70465087890625
+        ]
+      ],
+      "shape_type": "polygon",
+      "group_id": null,
+      "description": "",
+      "flags": {}
+    }
+  ],
+  "imagePath": "rs_030.png",
+  "imageData": null,
+  "imageHeight": 480,
+  "imageWidth": 640
+}

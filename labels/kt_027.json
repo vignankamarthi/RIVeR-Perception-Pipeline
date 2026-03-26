@@ -1,0 +1,35 @@
+{
+  "version": "5.4.1",
+  "flags": {},
+  "shapes": [
+    {
+      "label": "banana",
+      "points": [
+        [
+          1523.5965576171875,
+          589.417724609375
+        ],
+        [
+          1375.4617919921875,
+          402.35693359375
+        ],
+        [
+          1443.1158447265625,
+          348.78125
+        ],
+        [
+          1591.2506103515625,
+          535.842041015625
+        ]
+      ],
+      "shape_type": "polygon",
+      "group_id": null,
+      "description": "",
+      "flags": {}
+    }
+  ],
+  "imagePath": "kt_027.png",
+  "imageData": null,
+  "imageHeight": 1080,
+  "imageWidth": 1920
+}
