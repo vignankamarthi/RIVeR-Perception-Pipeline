@@ -68,11 +68,12 @@ CAMERA_CONFIG = {
 class DualCameraDetector(Node):
     """ROS2 node that runs YOLO OBB detection on two camera feeds."""
 
-    def __init__(self, weights: str, conf: float = 0.5):
+    def __init__(self, weights: str, conf: float = 0.5, visualize: bool = False):
         super().__init__("dual_camera_detector")
 
         self.bridge = CvBridge()
         self.conf = conf
+        self.visualize = visualize
 
         # Load YOLO model
         self.get_logger().info(f"Loading YOLO model: {weights}")
@@ -208,6 +209,26 @@ class DualCameraDetector(Node):
                 f"{pos_str}"
             )
 
+        # Visualize with OBB overlays
+        if self.visualize:
+            vis_frame = frame.copy()
+            for d in detections:
+                # Draw OBB polygon
+                pts = np.array(d["obb_points"], dtype=np.int32)
+                cv2.polylines(vis_frame, [pts], isClosed=True, color=(0, 255, 0), thickness=2)
+
+                # Label with class, confidence, and 3D position
+                label = f"{d['class_name']} {d['confidence']:.2f}"
+                if d["position_3d"]:
+                    p = d["position_3d"]
+                    label += f" ({p['z']:.2f}m)"
+                cx, cy = int(d["center_pixel"][0]), int(d["center_pixel"][1])
+                cv2.putText(vis_frame, label, (cx - 60, cy - 10),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+
+            cv2.imshow(f"YOLO OBB - {camera_name}", vis_frame)
+            cv2.waitKey(1)
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="ROS2 dual-camera YOLO OBB detector")
@@ -223,6 +244,11 @@ def parse_args():
         default=0.5,
         help="Detection confidence threshold (default: 0.5)",
     )
+    parser.add_argument(
+        "--visualize",
+        action="store_true",
+        help="Show live camera feeds with OBB overlays (requires display)",
+    )
     return parser.parse_args()
 
 
@@ -236,13 +262,15 @@ def main():
         sys.exit(1)
 
     rclpy.init()
-    node = DualCameraDetector(str(weights), conf=args.conf)
+    node = DualCameraDetector(str(weights), conf=args.conf, visualize=args.visualize)
 
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
         node.get_logger().info("Shutting down.")
     finally:
+        if args.visualize:
+            cv2.destroyAllWindows()
         node.destroy_node()
         rclpy.shutdown()
 
