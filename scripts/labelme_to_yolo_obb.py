@@ -62,11 +62,18 @@ def labelme_shape_to_yolo_obb_line(
     """
     label = shape["label"]
     points = shape["points"]
+    shape_type = shape.get("shape_type", "polygon")
 
     if label not in CLASS_MAP:
         raise ValueError(
             f"Unknown class label '{label}'. Known classes: {list(CLASS_MAP.keys())}"
         )
+
+    # LabelMe rectangles store 2 points (top-left, bottom-right) -- expand to 4 corners
+    if shape_type == "rectangle" and len(points) == 2:
+        x1, y1 = points[0]
+        x2, y2 = points[1]
+        points = [[x1, y1], [x2, y1], [x2, y2], [x1, y2]]
 
     if len(points) != 4:
         raise ValueError(

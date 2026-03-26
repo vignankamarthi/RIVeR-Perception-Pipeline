@@ -96,16 +96,28 @@ def main():
         print(f"No images found in {IMAGES_DIR}/realsense/ or {IMAGES_DIR}/kinect/")
         sys.exit(1)
 
-    stems = [f.stem for f in all_images]
+    # Build stem -> full path map (images live in subdirectories)
+    stem_to_path = {f.stem: f for f in all_images}
+    stems = list(stem_to_path.keys())
     print(f"Found {len(stems)} images.")
 
     train_stems, val_stems = compute_split(stems, val_ratio=0.2, seed=42)
     print(f"Split: {len(train_stems)} train, {len(val_stems)} val")
 
+    # Copy images from their actual subdirectory paths
+    for split_name, split_stems in [("train", train_stems), ("val", val_stems)]:
+        img_dst = DATASET_DIR / "images" / split_name
+        img_dst.mkdir(parents=True, exist_ok=True)
+        for stem in split_stems:
+            src = stem_to_path.get(stem)
+            if src and src.exists():
+                shutil.copy2(src, img_dst / src.name)
+
+    # Copy labels (flat directory, no subdirectory issue)
     execute_split(
         train_stems=train_stems,
         val_stems=val_stems,
-        images_src=IMAGES_DIR,
+        images_src=IMAGES_DIR,  # not used for images anymore
         labels_src=LABELS_DIR,
         output_base=DATASET_DIR,
     )
