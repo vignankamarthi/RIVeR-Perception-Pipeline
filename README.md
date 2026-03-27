@@ -1,6 +1,6 @@
 # RIVeR Perception Pipeline
 
-**Oriented object detection for robotic manipulation via YOLO OBB. Auto-labeling with YOLO-World + SAM2, dual-camera capture, training, evaluation. TDD-enforced (70 tests).**
+**Oriented object detection for robotic manipulation via YOLO OBB. Auto-labeling with YOLO-World + SAM2, dual-camera capture, training, evaluation, ROS2 live inference. TDD-enforced (91 tests).**
 
 ---
 
@@ -11,6 +11,7 @@ End-to-end perception pipeline: detect and track objects using oriented bounding
 - **Auto-labeling**: YOLO-World (open-vocabulary detection) + SAM2 (segmentation) -- text-prompted, zero extra dependencies
 - **YOLO OBB**: Oriented bounding box detection via YOLOv8-OBB (Ultralytics)
 - **Dual-camera**: Intel RealSense D455 (workspace) + Azure Kinect DK (top-down)
+- **ROS2 inference**: Live dual-camera detection with depth-based 3D localization
 - **Reproducible**: Swap the class name and re-run for any object
 
 ---
@@ -22,7 +23,7 @@ End-to-end perception pipeline: detect and track objects using oriented bounding
 pip install pyrealsense2-macosx labelme ultralytics pytest
 
 # Run tests
-pytest tests/ -v  # 70 passing
+pytest tests/ -v  # 91 passing
 
 # Auto-label images (offline batch)
 python3 scripts/auto_label.py --classes banana
@@ -46,6 +47,7 @@ python3 scripts/train.py
 | Train | `scripts/train.py` | Fine-tune YOLOv8n-OBB |
 | Evaluate | `scripts/evaluate.py` | Inference on val set |
 | Visualize | `scripts/visualize_labels.py` | Overlay labels for spot-checking |
+| **ROS2 Detect** | **`scripts/ros_detect.py`** | **Live dual-camera OBB detection** |
 
 Full documentation: [`Documents/TRAINING_PIPELINE.md`](Documents/TRAINING_PIPELINE.md)
 
@@ -87,6 +89,30 @@ python3 scripts/auto_label.py --classes banana pear can
 
 ---
 
+## ROS2 Live Inference
+
+Dual-camera detection node for ROS2 Humble. Subscribes to RealSense + Kinect RGB/depth streams, runs YOLO OBB inference, computes 3D object positions via depth + camera intrinsics, and publishes detections as JSON.
+
+```bash
+# On Ubuntu lab machine (3 terminals):
+
+# Terminal 1 (physical): Kinect driver
+source /opt/ros/humble/setup.zsh && source ~/ros2_ws/install/setup.zsh
+ros2 launch azure_kinect_ros_driver driver.launch.py
+
+# Terminal 2: RealSense driver
+source /opt/ros/humble/setup.zsh
+ros2 launch realsense2_camera rs_launch.py depth_module.enable:=true
+
+# Terminal 3: Detection node (with live visualization)
+source /opt/ros/humble/setup.zsh && source ~/ros2_ws/install/setup.zsh
+python3 scripts/ros_detect.py --visualize
+```
+
+Publishes to: `/detections/banana_obb` (JSON with class, confidence, OBB, 3D position)
+
+---
+
 ## Project Structure
 
 ```
@@ -100,9 +126,12 @@ scripts/
   train.py                  YOLOv8-OBB fine-tuning
   evaluate.py               Inference + visual confirmation
   visualize_labels.py       OBB label overlay for spot-checking
+  detect_utils.py           Detection logic (parsing, depth, 3D conversion)
+  ros_detect.py             ROS2 dual-camera live detection node
 tests/
   test_auto_label.py        20 tests (conversion + orchestration)
   test_capture_utils.py     15 tests
+  test_detect_utils.py      21 tests (detection logic)
   test_labelme_to_yolo_obb.py  14 tests
   test_split_dataset.py     11 tests
   test_visualize_labels.py  10 tests
