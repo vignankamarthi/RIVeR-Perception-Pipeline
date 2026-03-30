@@ -45,6 +45,8 @@ from detect_utils import (
     pixel_to_3d,
     format_detections_json,
     filter_detections,
+    estimate_banana_pose,
+    BANANA_DIMS_M,
 )
 
 # Default model path (relative to scripts/)
@@ -169,12 +171,17 @@ class DualCameraDetector(Node):
         detections = parse_obb_results(obb_points, class_ids, confidences, self.class_names)
         detections = filter_detections(detections, self.conf)
 
-        # Add 3D position if depth is available
+        # Add 3D position and 6DOF pose if depth is available
         depth_image = self.depth_images.get(camera_name)
         intrinsics = self.camera_intrinsics.get(camera_name)
 
-        for det_dict in detections:
+        # Extract xywhr for PnP (available alongside xyxyxyxy)
+        obb_xywhr_all = det.obb.xywhr.cpu().numpy()  # (N, 5)
+
+        for i, det_dict in enumerate(detections):
             det_dict["position_3d"] = None
+            det_dict["pose_6dof"] = None
+            depth_m = None
 
             if depth_image is not None and intrinsics is not None:
                 cx, cy = det_dict["center_pixel"]
@@ -189,6 +196,14 @@ class DualCameraDetector(Node):
                     )
                     det_dict["position_3d"] = pos
 
+            # 6DOF pose via PnP
+            if intrinsics is not None and i < len(obb_xywhr_all):
+                xywhr = tuple(obb_xywhr_all[i])
+                pose = estimate_banana_pose(
+                    xywhr, intrinsics, BANANA_DIMS_M, measured_depth=depth_m,
+                )
+                det_dict["pose_6dof"] = pose
+
         # Publish as JSON
         timestamp = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
         json_str = format_detections_json(detections, camera_name, timestamp)
@@ -202,29 +217,52 @@ class DualCameraDetector(Node):
             pos_str = ""
             if d["position_3d"]:
                 p = d["position_3d"]
-                pos_str = f" @ ({p['x']:.3f}, {p['y']:.3f}, {p['z']:.3f})m"
+                pos_str = f" depth={p['z']:.3f}m"
+            pose_str = ""
+            if d["pose_6dof"]:
+                p = d["pose_6dof"]
+                e = p["orientation_euler"]
+                pose_str = (
+                    f" 6DOF: yaw={e['yaw']:.1f} pitch={e['pitch']:.1f}"
+                    f" reproj={p['reprojection_error']:.1f}px"
+                )
             self.get_logger().info(
                 f"[{camera_name}] {d['class_name']} conf={d['confidence']:.2f}"
-                f" center=({d['center_pixel'][0]:.0f}, {d['center_pixel'][1]:.0f})"
-                f"{pos_str}"
+                f"{pos_str}{pose_str}"
             )
 
-        # Visualize with OBB overlays
+        # Visualize with OBB overlays + coordinate axes
         if self.visualize:
             vis_frame = frame.copy()
-            for d in detections:
+            for i, d in enumerate(detections):
                 # Draw OBB polygon
                 pts = np.array(d["obb_points"], dtype=np.int32)
                 cv2.polylines(vis_frame, [pts], isClosed=True, color=(0, 255, 0), thickness=2)
 
-                # Label with class, confidence, and 3D position
+                # Label with class, confidence, and pose info
                 label = f"{d['class_name']} {d['confidence']:.2f}"
-                if d["position_3d"]:
-                    p = d["position_3d"]
-                    label += f" ({p['z']:.2f}m)"
-                cx, cy = int(d["center_pixel"][0]), int(d["center_pixel"][1])
-                cv2.putText(vis_frame, label, (cx - 60, cy - 10),
+                if d["pose_6dof"]:
+                    p = d["pose_6dof"]
+                    label += f" yaw={p['orientation_euler']['yaw']:.0f}"
+                elif d["position_3d"]:
+                    label += f" ({d['position_3d']['z']:.2f}m)"
+                cx_px, cy_px = int(d["center_pixel"][0]), int(d["center_pixel"][1])
+                cv2.putText(vis_frame, label, (cx_px - 60, cy_px - 10),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+
+                # Draw coordinate axes if PnP succeeded
+                if d["pose_6dof"] and intrinsics is not None:
+                    cam_matrix = np.array([
+                        [intrinsics["fx"], 0, intrinsics["cx"]],
+                        [0, intrinsics["fy"], intrinsics["cy"]],
+                        [0, 0, 1],
+                    ], dtype=np.float64)
+                    # Recover rvec/tvec from pose for drawFrameAxes
+                    pos = d["pose_6dof"]["position"]
+                    R = np.array(d["pose_6dof"]["rotation_matrix"], dtype=np.float64)
+                    rvec, _ = cv2.Rodrigues(R)
+                    tvec = np.array([pos["x"], pos["y"], pos["z"]], dtype=np.float64)
+                    cv2.drawFrameAxes(vis_frame, cam_matrix, None, rvec, tvec, 0.05)
 
             cv2.imshow(f"YOLO OBB - {camera_name}", vis_frame)
             cv2.waitKey(1)
