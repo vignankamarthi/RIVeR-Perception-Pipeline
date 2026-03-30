@@ -152,8 +152,8 @@ def format_detections_json(
 # 6DOF Pose Estimation via PnP
 # ---------------------------------------------------------------------------
 
-# Placeholder -- measure at lab and update
-BANANA_DIMS_M = {"length": 0.180, "width": 0.040, "height": 0.035}
+# Measured at lab 2026-03-30 with cm tape measure
+BANANA_DIMS_M = {"length": 0.196, "width": 0.067, "height": 0.036}
 
 
 def make_object_model(length: float, width: float, height: float) -> np.ndarray:
