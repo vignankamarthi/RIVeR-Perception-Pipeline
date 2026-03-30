@@ -32,7 +32,7 @@ import numpy as np
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image, CameraInfo
-from std_msgs.msg import String
+from geometry_msgs.msg import PoseStamped
 from cv_bridge import CvBridge
 
 from ultralytics import YOLO
@@ -43,7 +43,6 @@ from detect_utils import (
     parse_obb_results,
     get_depth_at_pixel,
     pixel_to_3d,
-    format_detections_json,
     filter_detections,
     estimate_banana_pose,
     BANANA_DIMS_M,
@@ -89,8 +88,9 @@ class DualCameraDetector(Node):
         self.depth_images = {"realsense": None, "kinect": None}
         self.camera_intrinsics = {"realsense": None, "kinect": None}
 
-        # Publisher for detections (JSON on string topic)
-        self.detection_pub = self.create_publisher(String, "/detections/banana_obb", 10)
+        # PoseStamped publishers -- one per class for multi-object support
+        # Dynamically created on first detection of each class
+        self.pose_pubs = {}  # {class_name: publisher}
 
         # Subscribe to both cameras
         for cam_name, config in CAMERA_CONFIG.items():
@@ -204,13 +204,30 @@ class DualCameraDetector(Node):
                 )
                 det_dict["pose_6dof"] = pose
 
-        # Publish as JSON
-        timestamp = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
-        json_str = format_detections_json(detections, camera_name, timestamp)
+        # Publish as PoseStamped (standard ROS2 format for MoveIt/RVIZ/tf2)
+        # One topic per class: /detections/<class_name>/pose
+        for d in detections:
+            if d["pose_6dof"] is not None:
+                class_name = d["class_name"]
 
-        out_msg = String()
-        out_msg.data = json_str
-        self.detection_pub.publish(out_msg)
+                # Create publisher for this class if first time seeing it
+                if class_name not in self.pose_pubs:
+                    topic = f"/detections/{class_name}/pose"
+                    self.pose_pubs[class_name] = self.create_publisher(PoseStamped, topic, 10)
+                    self.get_logger().info(f"Created pose publisher: {topic}")
+
+                pose_msg = PoseStamped()
+                pose_msg.header = msg.header  # same timestamp + frame as the image
+                q = d["pose_6dof"]["orientation_quat"]
+                p = d["pose_6dof"]["position"]
+                pose_msg.pose.position.x = p["x"]
+                pose_msg.pose.position.y = p["y"]
+                pose_msg.pose.position.z = p["z"]
+                pose_msg.pose.orientation.x = q["x"]
+                pose_msg.pose.orientation.y = q["y"]
+                pose_msg.pose.orientation.z = q["z"]
+                pose_msg.pose.orientation.w = q["w"]
+                self.pose_pubs[class_name].publish(pose_msg)
 
         # Log summary
         for d in detections:
@@ -223,7 +240,7 @@ class DualCameraDetector(Node):
                 p = d["pose_6dof"]
                 e = p["orientation_euler"]
                 pose_str = (
-                    f" 6DOF: yaw={e['yaw']:.1f} pitch={e['pitch']:.1f}"
+                    f" 6DOF: yaw={e['yaw']:.1f} pitch={e['pitch']:.1f} roll={e['roll']:.1f}"
                     f" reproj={p['reprojection_error']:.1f}px"
                 )
             self.get_logger().info(

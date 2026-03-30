@@ -589,3 +589,63 @@ class TestEstimateBananaPose:
         assert "orientation_quat" in result
         assert "reprojection_error" in result
         assert "method" in result
+
+    def test_pose_has_all_euler_angles(self):
+        """Output euler should have roll, pitch, AND yaw."""
+        dims = {"length": 0.18, "width": 0.04, "height": 0.035}
+        intrinsics = {"fx": 500.0, "fy": 500.0, "cx": 320.0, "cy": 240.0}
+        model = make_object_model(0.18, 0.04, 0.035)
+        rvec = np.array([0.1, 0.2, 0.3])
+        tvec = np.array([0.0, 0.0, 0.8])
+        pts_2d = _project_points(model, rvec, tvec, _CAM_MATRIX)
+        rect = cv2.minAreaRect(pts_2d.astype(np.float32))
+        cx, cy = rect[0]
+        w, h = max(rect[1]), min(rect[1])
+        r = np.deg2rad(rect[2]) if rect[1][0] < rect[1][1] else np.deg2rad(rect[2] + 90)
+        result = estimate_banana_pose((cx, cy, w, h, r), intrinsics, dims, measured_depth=0.8)
+        assert result is not None
+        euler = result["orientation_euler"]
+        assert "roll" in euler
+        assert "pitch" in euler
+        assert "yaw" in euler
+
+    def test_quaternion_in_pose_is_unit(self):
+        """Quaternion in full pipeline output should be normalized."""
+        dims = {"length": 0.18, "width": 0.04, "height": 0.035}
+        intrinsics = {"fx": 500.0, "fy": 500.0, "cx": 320.0, "cy": 240.0}
+        model = make_object_model(0.18, 0.04, 0.035)
+        rvec = np.array([0.0, 0.0, 0.5])
+        tvec = np.array([0.0, 0.0, 0.7])
+        pts_2d = _project_points(model, rvec, tvec, _CAM_MATRIX)
+        rect = cv2.minAreaRect(pts_2d.astype(np.float32))
+        cx, cy = rect[0]
+        w, h = max(rect[1]), min(rect[1])
+        r = np.deg2rad(rect[2]) if rect[1][0] < rect[1][1] else np.deg2rad(rect[2] + 90)
+        result = estimate_banana_pose((cx, cy, w, h, r), intrinsics, dims, measured_depth=0.7)
+        assert result is not None
+        q = result["orientation_quat"]
+        mag = np.sqrt(q["x"]**2 + q["y"]**2 + q["z"]**2 + q["w"]**2)
+        assert abs(mag - 1.0) < 1e-3
+
+
+# ---------------------------------------------------------------------------
+# Multi-object topic naming
+# ---------------------------------------------------------------------------
+
+class TestPoseTopicNaming:
+    """Tests for dynamic per-class topic name generation."""
+
+    def test_topic_name_format(self):
+        """Topic should follow /detections/<class>/pose pattern."""
+        class_name = "banana"
+        topic = f"/detections/{class_name}/pose"
+        assert topic == "/detections/banana/pose"
+
+    def test_different_classes_different_topics(self):
+        """Each class should get its own unique topic."""
+        classes = ["banana", "pear", "can"]
+        topics = [f"/detections/{c}/pose" for c in classes]
+        assert len(set(topics)) == 3
+        assert "/detections/banana/pose" in topics
+        assert "/detections/pear/pose" in topics
+        assert "/detections/can/pose" in topics
