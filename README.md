@@ -1,17 +1,17 @@
 # RIVeR Perception Pipeline
 
-**Oriented object detection for robotic manipulation via YOLO OBB. Auto-labeling with YOLO-World + SAM2, dual-camera capture, training, evaluation, ROS2 live inference. TDD-enforced (91 tests).**
+**Oriented object detection + 6DOF pose estimation for robotic manipulation via YOLO OBB. Auto-labeling with YOLO-World + SAM2, dual-camera capture, training, ROS2 live inference with PoseStamped output. TDD-enforced (125 tests).**
 
 ---
 
 ## Overview
 
-End-to-end perception pipeline: detect and track objects using oriented bounding boxes (OBB), which capture position and rotation -- critical for manipulation where object orientation matters.
+End-to-end perception pipeline: detect and track objects using oriented bounding boxes (OBB), estimate full 6DOF pose via PnP, and publish standard ROS2 PoseStamped messages for robot control.
 
-- **Auto-labeling**: YOLO-World (open-vocabulary detection) + SAM2 (segmentation) -- text-prompted, zero extra dependencies
+- **Auto-labeling**: YOLO-World + SAM2 -- text-prompted, zero extra dependencies
 - **YOLO OBB**: Oriented bounding box detection via YOLOv8-OBB (Ultralytics)
+- **6DOF Pose**: solvePnP with IPPE solver, depth disambiguation, per-class PoseStamped publishing
 - **Dual-camera**: Intel RealSense D455 (workspace) + Azure Kinect DK (top-down)
-- **ROS2 inference**: Live dual-camera detection with depth-based 3D localization
 - **Reproducible**: Swap the class name and re-run for any object
 
 ---
@@ -23,7 +23,7 @@ End-to-end perception pipeline: detect and track objects using oriented bounding
 pip install pyrealsense2-macosx labelme ultralytics pytest
 
 # Run tests
-pytest tests/ -v  # 91 passing
+pytest tests/ -v  # 125 passing
 
 # Auto-label images (offline batch)
 python3 scripts/auto_label.py --classes banana
@@ -47,9 +47,9 @@ python3 scripts/train.py
 | Train | `scripts/train.py` | Fine-tune YOLOv8n-OBB |
 | Evaluate | `scripts/evaluate.py` | Inference on val set |
 | Visualize | `scripts/visualize_labels.py` | Overlay labels for spot-checking |
-| **ROS2 Detect** | **`scripts/ros_detect.py`** | **Live dual-camera OBB detection** |
+| **ROS2 Detect** | **`scripts/ros_detect.py`** | **Live detection + 6DOF pose estimation** |
 
-Full documentation: [`Documents/TRAINING_PIPELINE.md`](Documents/TRAINING_PIPELINE.md)
+Full documentation: [`Documents/TRAINING_PIPELINE.md`](Documents/TRAINING_PIPELINE.md) | [`Documents/LAUNCH_DETECTION.md`](Documents/LAUNCH_DETECTION.md)
 
 ---
 
@@ -80,36 +80,23 @@ The auto-labeler replaces manual LabelMe annotation with a text-prompted pipelin
 Outputs both LabelMe JSON (for review) and YOLO OBB txt (for training). Zero additional pip installs -- both models are bundled in `ultralytics`.
 
 ```bash
-# Single class
-python3 scripts/auto_label.py --classes banana
-
-# Multiple classes
 python3 scripts/auto_label.py --classes banana pear can
 ```
 
 ---
 
-## ROS2 Live Inference
+## ROS2 Live Inference + 6DOF Pose
 
-Dual-camera detection node for ROS2 Humble. Subscribes to RealSense + Kinect RGB/depth streams, runs YOLO OBB inference, computes 3D object positions via depth + camera intrinsics, and publishes detections as JSON.
+Detection node for ROS2 Humble. Subscribes to camera RGB + depth streams, runs YOLO OBB inference, estimates 6DOF pose via solvePnP (IPPE solver for coplanar points, depth disambiguation), and publishes `geometry_msgs/PoseStamped` per detected class.
 
-```bash
-# On Ubuntu lab machine (3 terminals):
+**Published topics:** `/detections/<class>/pose` (e.g., `/detections/banana/pose`)
 
-# Terminal 1 (physical): Kinect driver
-source /opt/ros/humble/setup.zsh && source ~/ros2_ws/install/setup.zsh
-ros2 launch azure_kinect_ros_driver driver.launch.py
+Compatible with RVIZ, MoveIt, and tf2. Topics created dynamically per class -- multi-object ready.
 
-# Terminal 2: RealSense driver
-source /opt/ros/humble/setup.zsh
-ros2 launch realsense2_camera rs_launch.py depth_module.enable:=true
-
-# Terminal 3: Detection node (with live visualization)
-source /opt/ros/humble/setup.zsh && source ~/ros2_ws/install/setup.zsh
-python3 scripts/ros_detect.py --visualize
-```
-
-Publishes to: `/detections/banana_obb` (JSON with class, confidence, OBB, 3D position)
+**Verified performance:**
+- Reprojection error: ~1.3px
+- Yaw tracking: confirmed (90-degree rotation on table = ~90-degree yaw shift)
+- All 6DOF logged: yaw, pitch, roll
 
 ---
 
@@ -126,18 +113,18 @@ scripts/
   train.py                  YOLOv8-OBB fine-tuning
   evaluate.py               Inference + visual confirmation
   visualize_labels.py       OBB label overlay for spot-checking
-  detect_utils.py           Detection logic (parsing, depth, 3D conversion)
-  ros_detect.py             ROS2 dual-camera live detection node
+  detect_utils.py           Detection + 6DOF pose logic (PnP, depth, fusion)
+  ros_detect.py             ROS2 live detection + PoseStamped publisher
 tests/
   test_auto_label.py        20 tests (conversion + orchestration)
   test_capture_utils.py     15 tests
-  test_detect_utils.py      21 tests (detection logic)
+  test_detect_utils.py      55 tests (detection + 6DOF pose)
   test_labelme_to_yolo_obb.py  14 tests
   test_split_dataset.py     11 tests
   test_visualize_labels.py  10 tests
 images/
-  realsense/                52 RealSense captures (rs_001.png ...)
-  kinect/                   52 Kinect captures (kt_001.png ...)
+  realsense/                52 RealSense captures
+  kinect/                   52 Kinect captures
 labels/                     LabelMe JSON annotations (hand-reviewed)
 dataset/
   data.yaml                 Class config
@@ -145,5 +132,7 @@ dataset/
 models/
   banana_obb/weights/best.pt  Trained model (6.5 MB)
 Documents/
-  TRAINING_PIPELINE.md      Full pipeline documentation
+  TRAINING_PIPELINE.md      Training pipeline documentation
+  LAUNCH_DETECTION.md       Launch instructions for lab machine
+REFERENCE.md                Conceptual reference (ROS2, PnP, euler angles)
 ```
