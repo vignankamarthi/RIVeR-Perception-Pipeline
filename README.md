@@ -1,6 +1,6 @@
 # RIVeR Perception Pipeline
 
-**Oriented object detection + 6DOF pose estimation for robotic manipulation via YOLO OBB. Auto-labeling with YOLO-World + SAM2, dual-camera capture, training, ROS2 live inference with PoseStamped output. TDD-enforced (125 tests).**
+**Multi-class oriented object detection + 6DOF pose estimation for robotic manipulation via YOLO OBB. Auto-labeling with YOLO-World + SAM2, Kinect top-down capture, training, ROS2 live inference with PoseStamped output. TDD-enforced (125 tests).**
 
 ---
 
@@ -8,11 +8,12 @@
 
 End-to-end perception pipeline: detect and track objects using oriented bounding boxes (OBB), estimate full 6DOF pose via PnP, and publish standard ROS2 PoseStamped messages for robot control.
 
+- **Multi-class**: Banana, lime, can (3 classes, extensible)
 - **Auto-labeling**: YOLO-World + SAM2 -- text-prompted, zero extra dependencies
 - **YOLO OBB**: Oriented bounding box detection via YOLOv8-OBB (Ultralytics)
 - **6DOF Pose**: solvePnP with IPPE solver, depth disambiguation, per-class PoseStamped publishing
-- **Dual-camera**: Intel RealSense D455 (workspace) + Azure Kinect DK (top-down)
-- **Reproducible**: Swap the class name and re-run for any object
+- **Camera**: Azure Kinect DK (top-down view, primary deployment camera)
+- **Reproducible**: Swap the class names and re-run for any object
 
 ---
 
@@ -20,13 +21,13 @@ End-to-end perception pipeline: detect and track objects using oriented bounding
 
 ```bash
 # Install (macOS Apple Silicon)
-pip install pyrealsense2-macosx labelme ultralytics pytest
+pip install ultralytics labelme pytest
 
 # Run tests
 pytest tests/ -v  # 125 passing
 
 # Auto-label images (offline batch)
-python3 scripts/auto_label.py --classes banana
+python3 scripts/auto_label.py --classes banana lime can
 
 # Train
 python3 scripts/train.py
@@ -38,8 +39,8 @@ python3 scripts/train.py
 
 | Step | Script | What |
 |------|--------|------|
-| Capture (RealSense) | `scripts/capture_realsense.py` | RGB frames from RealSense D455 |
-| Capture (Kinect) | `scripts/capture_kinect.py` | RGB frames from Azure Kinect DK |
+| Capture (Kinect) | `scripts/capture_kinect.py` | RGB frames from Azure Kinect DK (top-down) |
+| Capture (RealSense) | `scripts/capture_realsense.py` | RGB frames from RealSense D455 (side view) |
 | Auto-label | `scripts/auto_label.py` | YOLO-World + SAM2 auto-labeling |
 | Review | LabelMe (external) | Audit + correct auto-labels |
 | Convert | `scripts/labelme_to_yolo_obb.py` | LabelMe JSON to YOLO OBB format |
@@ -53,19 +54,23 @@ Full documentation: [`Documents/TRAINING_PIPELINE.md`](Documents/TRAINING_PIPELI
 
 ---
 
-## Trained Model (Banana)
+## Trained Model (Multi-Class)
 
-| Metric | Value |
-|--------|-------|
-| Precision | 1.000 |
-| Recall | 0.889 |
-| mAP50 | 0.921 |
-| mAP50-95 | 0.778 |
-| Model size | 6.5 MB |
-| Inference | 25ms/image |
-| Dataset | 104 images (52 RealSense + 52 Kinect) |
+| Metric | All | Banana | Lime | Can |
+|--------|-----|--------|------|-----|
+| Precision | 0.982 | 0.978 | 0.975 | 0.993 |
+| Recall | 1.000 | 1.000 | 1.000 | 1.000 |
+| mAP50 | 0.995 | 0.995 | 0.995 | 0.995 |
+| mAP50-95 | 0.892 | 0.908 | 0.932 | 0.837 |
 
-Weights: `models/banana_obb/weights/best.pt`
+| Spec | Value |
+|------|-------|
+| Model size | 6.6 MB |
+| Inference | 17ms/image |
+| Dataset | 60 images (Kinect top-down) |
+| Training | 50 epochs, 12 min (Apple M2 Pro CPU) |
+
+Weights: `models/multi_class_obb/weights/best.pt`
 
 ---
 
@@ -80,8 +85,10 @@ The auto-labeler replaces manual LabelMe annotation with a text-prompted pipelin
 Outputs both LabelMe JSON (for review) and YOLO OBB txt (for training). Zero additional pip installs -- both models are bundled in `ultralytics`.
 
 ```bash
-python3 scripts/auto_label.py --classes banana pear can
+python3 scripts/auto_label.py --classes banana lime can
 ```
+
+Note: top-down views may require custom text prompts for best results (e.g., "small green ball" for lime from above).
 
 ---
 
@@ -89,9 +96,9 @@ python3 scripts/auto_label.py --classes banana pear can
 
 Detection node for ROS2 Humble. Subscribes to camera RGB + depth streams, runs YOLO OBB inference, estimates 6DOF pose via solvePnP (IPPE solver for coplanar points, depth disambiguation), and publishes `geometry_msgs/PoseStamped` per detected class.
 
-**Published topics:** `/detections/<class>/pose` (e.g., `/detections/banana/pose`)
+**Published topics:** `/detections/<class>/pose` (e.g., `/detections/banana/pose`, `/detections/lime/pose`, `/detections/can/pose`)
 
-Compatible with RVIZ, MoveIt, and tf2. Topics created dynamically per class -- multi-object ready.
+Compatible with RVIZ, MoveIt, and tf2. Topics created dynamically per class.
 
 **Verified performance:**
 - Reprojection error: ~1.3px
@@ -105,8 +112,8 @@ Compatible with RVIZ, MoveIt, and tf2. Topics created dynamically per class -- m
 ```
 scripts/
   capture_utils.py          Shared utilities (file naming, indexing)
-  capture_realsense.py      RealSense D455 capture (Mac native)
-  capture_kinect.py         Azure Kinect DK capture (Ubuntu via SSH)
+  capture_realsense.py      RealSense D455 capture (Mac native via UVC)
+  capture_kinect.py         Azure Kinect DK capture (Ubuntu, physical terminal)
   auto_label.py             YOLO-World + SAM2 auto-labeling
   labelme_to_yolo_obb.py    LabelMe JSON -> YOLO OBB format
   split_dataset.py          Train/val split with reproducible seed
@@ -123,16 +130,17 @@ tests/
   test_split_dataset.py     11 tests
   test_visualize_labels.py  10 tests
 images/
-  realsense/                52 RealSense captures
-  kinect/                   52 Kinect captures
+  kinect/                   60 Kinect captures (top-down, multi-class)
 labels/                     LabelMe JSON annotations (hand-reviewed)
 dataset/
-  data.yaml                 Class config
+  data.yaml                 Class config (3 classes: banana, lime, can)
   labels/                   YOLO OBB txt annotations
+  images/train/             48 training images
+  images/val/               12 validation images
 models/
-  banana_obb/weights/best.pt  Trained model (6.5 MB)
+  multi_class_obb/          Trained multi-class model (banana + lime + can)
+  banana_obb/               Legacy banana-only model
 Documents/
   TRAINING_PIPELINE.md      Training pipeline documentation
   LAUNCH_DETECTION.md       Launch instructions for lab machine
-REFERENCE.md                Conceptual reference (ROS2, PnP, euler angles)
 ```
