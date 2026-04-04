@@ -28,10 +28,10 @@ def main():
         imgsz=640,
         batch=16,
         project=str(PROJECT_DIR),
-        name="banana_obb",
+        name="multi_class_obb",
     )
 
-    print(f"\nTraining complete. Best weights: {PROJECT_DIR}/banana_obb/weights/best.pt")
+    print(f"\nTraining complete. Best weights: {PROJECT_DIR}/multi_class_obb/weights/best.pt")
     return results
 
 

@@ -20,7 +20,7 @@ import sys
 from pathlib import Path
 
 # Class mapping -- extend this when adding new objects
-CLASS_MAP = {"banana": 0}
+CLASS_MAP = {"banana": 0, "lime": 1, "can": 2}
 
 # Directories
 SCRIPT_DIR = Path(__file__).parent

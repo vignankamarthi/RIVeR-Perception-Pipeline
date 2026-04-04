@@ -2,6 +2,8 @@ path: /Users/vkamarthi24/Desktop/Work/Personal Projects/2025-2026/RiVER Lab Work
 train: images/train
 val: images/val
 
-nc: 1
+nc: 3
 names:
   0: banana
+  1: lime
+  2: can
