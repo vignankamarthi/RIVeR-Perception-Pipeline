@@ -121,7 +121,7 @@ class DualCameraDetector(Node):
 
             self.get_logger().info(f"Subscribed to {cam_name}: {config['rgb_topic']}")
 
-        self.get_logger().info("Dual camera detector ready. Waiting for images...")
+        self.get_logger().info("Detector ready. Waiting for images...")
 
     def depth_callback(self, msg: Image, camera_name: str):
         """Store the latest depth image for a camera."""
