@@ -44,8 +44,8 @@ from detect_utils import (
     get_depth_at_pixel,
     pixel_to_3d,
     filter_detections,
-    estimate_banana_pose,
-    BANANA_DIMS_M,
+    estimate_object_pose,
+    OBJECT_DIMS,
 )
 
 # Default model path (relative to scripts/)
@@ -91,6 +91,7 @@ class DualCameraDetector(Node):
         # PoseStamped publishers -- one per class for multi-object support
         # Dynamically created on first detection of each class
         self.pose_pubs = {}  # {class_name: publisher}
+        self._warned_no_dims = set()  # classes already warned about missing dims
 
         # Subscribe to both cameras
         for cam_name, config in CAMERA_CONFIG.items():
@@ -199,9 +200,20 @@ class DualCameraDetector(Node):
             # 6DOF pose via PnP
             if intrinsics is not None and i < len(obb_xywhr_all):
                 xywhr = tuple(obb_xywhr_all[i])
-                pose = estimate_banana_pose(
-                    xywhr, intrinsics, BANANA_DIMS_M, measured_depth=depth_m,
-                )
+                class_name = det_dict["class_name"]
+                dims = OBJECT_DIMS.get(class_name)
+                pose = None
+                if dims is None:
+                    if class_name not in self._warned_no_dims:
+                        self.get_logger().warn(
+                            f"No dimensions for class '{class_name}' -- skipping PnP. "
+                            f"Add measurements to OBJECT_DIMS in detect_utils.py"
+                        )
+                        self._warned_no_dims.add(class_name)
+                else:
+                    pose = estimate_object_pose(
+                        xywhr, intrinsics, dims, measured_depth=depth_m,
+                    )
                 det_dict["pose_6dof"] = pose
 
         # Publish as PoseStamped (standard ROS2 format for MoveIt/RVIZ/tf2)

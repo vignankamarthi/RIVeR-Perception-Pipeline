@@ -29,7 +29,7 @@ from detect_utils import (
     solve_pose_pnp,
     pose_to_position_and_euler,
     fuse_poses,
-    estimate_banana_pose,
+    estimate_object_pose,
 )
 
 
@@ -556,7 +556,7 @@ class TestEstimateBananaPose:
         cx, cy = rect[0]
         w, h = max(rect[1]), min(rect[1])
         r = np.deg2rad(rect[2]) if rect[1][0] < rect[1][1] else np.deg2rad(rect[2] + 90)
-        result = estimate_banana_pose((cx, cy, w, h, r), intrinsics, dims, measured_depth=0.8)
+        result = estimate_object_pose((cx, cy, w, h, r), intrinsics, dims, measured_depth=0.8)
         assert result is not None
         assert "position" in result
         assert "orientation_euler" in result
@@ -567,7 +567,7 @@ class TestEstimateBananaPose:
         dims = {"length": 0.18, "width": 0.04, "height": 0.035}
         intrinsics = {"fx": 500.0, "fy": 500.0, "cx": 320.0, "cy": 240.0}
         # Degenerate OBB with zero area
-        result = estimate_banana_pose((320, 240, 0, 0, 0), intrinsics, dims, measured_depth=1.0)
+        result = estimate_object_pose((320, 240, 0, 0, 0), intrinsics, dims, measured_depth=1.0)
         assert result is None
 
     def test_output_has_all_fields(self):
@@ -582,7 +582,7 @@ class TestEstimateBananaPose:
         cx, cy = rect[0]
         w, h = max(rect[1]), min(rect[1])
         r = np.deg2rad(rect[2]) if rect[1][0] < rect[1][1] else np.deg2rad(rect[2] + 90)
-        result = estimate_banana_pose((cx, cy, w, h, r), intrinsics, dims, measured_depth=0.7)
+        result = estimate_object_pose((cx, cy, w, h, r), intrinsics, dims, measured_depth=0.7)
         assert result is not None
         assert "position" in result
         assert "orientation_euler" in result
@@ -602,7 +602,7 @@ class TestEstimateBananaPose:
         cx, cy = rect[0]
         w, h = max(rect[1]), min(rect[1])
         r = np.deg2rad(rect[2]) if rect[1][0] < rect[1][1] else np.deg2rad(rect[2] + 90)
-        result = estimate_banana_pose((cx, cy, w, h, r), intrinsics, dims, measured_depth=0.8)
+        result = estimate_object_pose((cx, cy, w, h, r), intrinsics, dims, measured_depth=0.8)
         assert result is not None
         euler = result["orientation_euler"]
         assert "roll" in euler
@@ -621,7 +621,7 @@ class TestEstimateBananaPose:
         cx, cy = rect[0]
         w, h = max(rect[1]), min(rect[1])
         r = np.deg2rad(rect[2]) if rect[1][0] < rect[1][1] else np.deg2rad(rect[2] + 90)
-        result = estimate_banana_pose((cx, cy, w, h, r), intrinsics, dims, measured_depth=0.7)
+        result = estimate_object_pose((cx, cy, w, h, r), intrinsics, dims, measured_depth=0.7)
         assert result is not None
         q = result["orientation_quat"]
         mag = np.sqrt(q["x"]**2 + q["y"]**2 + q["z"]**2 + q["w"]**2)

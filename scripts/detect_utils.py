@@ -152,8 +152,17 @@ def format_detections_json(
 # 6DOF Pose Estimation via PnP
 # ---------------------------------------------------------------------------
 
-# Measured at lab 2026-03-30 with cm tape measure
-BANANA_DIMS_M = {"length": 0.196, "width": 0.067, "height": 0.036}
+# Measured at lab with cm tape measure (bounding box dimensions)
+BANANA_DIMS_M = {"length": 0.196, "width": 0.067, "height": 0.036}  # 2026-03-30
+LIME_DIMS_M = {"length": 0.064, "width": 0.058, "height": 0.044}    # 2026-04-08
+CAN_DIMS_M = {"length": 0.0665, "width": 0.0665, "height": 0.1012}  # 2026-04-08
+
+# Per-class dimension lookup for PnP pose estimation
+OBJECT_DIMS = {
+    "banana": BANANA_DIMS_M,
+    "lime": LIME_DIMS_M,
+    "can": CAN_DIMS_M,
+}
 
 
 def make_object_model(length: float, width: float, height: float) -> np.ndarray:
@@ -495,14 +504,14 @@ def fuse_poses(
     }
 
 
-def estimate_banana_pose(
+def estimate_object_pose(
     obb_xywhr: tuple[float, float, float, float, float],
     camera_intrinsics: dict,
     object_dims: dict,
     measured_depth: float | None = None,
     dist_coeffs: np.ndarray | None = None,
 ) -> dict | None:
-    """Top-level: OBB detection -> 6DOF banana pose.
+    """Top-level: OBB detection -> 6DOF object pose.
 
     Args:
         obb_xywhr: (cx, cy, w, h, r) from YOLO OBB.
