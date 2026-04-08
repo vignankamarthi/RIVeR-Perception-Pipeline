@@ -49,7 +49,7 @@ from detect_utils import (
 )
 
 # Default model path (relative to scripts/)
-DEFAULT_WEIGHTS = Path(__file__).parent.parent / "models" / "banana_obb" / "weights" / "best.pt"
+DEFAULT_WEIGHTS = Path(__file__).parent.parent / "models" / "multi_class_obb" / "weights" / "best.pt"
 
 # Camera topic configuration
 CAMERA_CONFIG = {
