@@ -1,5 +1,7 @@
 # RIVeR Perception Pipeline
 
+> **ARCHIVED 2026-05-18.** Complete and frozen -- foundational entry work in Northeastern's RIVeR Lab. Not under active development.
+
 **Multi-class oriented object detection + 6DOF pose estimation for robotic manipulation via YOLO OBB. Auto-labeling with YOLO-World + SAM2, Kinect top-down capture, training, ROS2 live inference with PoseStamped output. TDD-enforced (125 tests).**
 
 ---
